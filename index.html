@@ -56,6 +56,7 @@
       border: 1px solid var(--line);
       border-radius: 0.8rem;
       display: flex;
+      flex-wrap: wrap;
       gap: 1rem;
       justify-content: space-between;
       margin-bottom: 1rem;
@@ -91,7 +92,7 @@
     }
     table {
       border-collapse: collapse;
-      min-width: 34rem;
+      min-width: 48rem;
       width: 100%;
     }
     th, td {
@@ -108,8 +109,8 @@
     td {
       border-top: 1px solid var(--line);
     }
-    td:nth-child(2), td:nth-child(3),
-    th:nth-child(2), th:nth-child(3) {
+    td:nth-child(3), td:nth-child(4),
+    th:nth-child(3), th:nth-child(4) {
       text-align: right;
     }
     .message {
@@ -149,6 +150,13 @@
           <option value="all">All colleges and universities</option>
         </select>
       </div>
+      <div>
+        <label for="sort-order">Sort by median sale price</label>
+        <select id="sort-order">
+          <option value="ascending">Ascending</option>
+          <option value="descending">Descending</option>
+        </select>
+      </div>
     </section>
 
     <p class="summary" id="summary" role="status">Loading sales data…</p>
@@ -158,12 +166,13 @@
         <thead>
           <tr>
             <th scope="col">City</th>
+            <th scope="col">College or university</th>
             <th scope="col">Sales included</th>
             <th scope="col">Median sale price</th>
           </tr>
         </thead>
         <tbody id="results">
-          <tr><td class="message" colspan="3">Loading sales data…</td></tr>
+          <tr><td class="message" colspan="4">Loading sales data…</td></tr>
         </tbody>
       </table>
     </div>
@@ -179,6 +188,7 @@
     const DATA_URL = "data/college_town_home_sales.csv";
     const MINIMUM_PRICE = 10000;
     const filter = document.querySelector("#university-filter");
+    const sortOrder = document.querySelector("#sort-order");
     const results = document.querySelector("#results");
     const summary = document.querySelector("#summary");
 
@@ -242,20 +252,25 @@
 
       included.forEach((sale) => {
         const key = `${sale.city}, ${sale.state}`;
-        if (!cities.has(key)) cities.set(key, []);
-        cities.get(key).push(sale.sale_price);
+        if (!cities.has(key)) cities.set(key, { university: sale.university, prices: [] });
+        cities.get(key).prices.push(sale.sale_price);
       });
 
-      const sortedCities = [...cities.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+      const sortedCities = [...cities.entries()].sort(([cityA, dataA], [cityB, dataB]) => {
+        const priceDifference = median(dataA.prices) - median(dataB.prices);
+        return (sortOrder.value === "descending" ? -priceDifference : priceDifference) ||
+          cityA.localeCompare(cityB);
+      });
       results.innerHTML = sortedCities.length
-        ? sortedCities.map(([city, prices]) => `
+        ? sortedCities.map(([city, data]) => `
             <tr>
               <td>${city}</td>
-              <td>${prices.length.toLocaleString("en-US")}</td>
-              <td>${currency(median(prices))}</td>
+              <td>${data.university}</td>
+              <td>${data.prices.length.toLocaleString("en-US")}</td>
+              <td>${currency(median(data.prices))}</td>
             </tr>
           `).join("")
-        : '<tr><td class="message" colspan="3">No sales match this filter.</td></tr>';
+        : '<tr><td class="message" colspan="4">No sales match this filter.</td></tr>';
 
       summary.textContent = `${included.length.toLocaleString("en-US")} sales included across ${sortedCities.length} ${sortedCities.length === 1 ? "city" : "cities"}.`;
     }
@@ -276,10 +291,11 @@
             filter.insertAdjacentHTML("beforeend", `<option value="${university}">${university}</option>`);
           });
         filter.addEventListener("change", () => render(sales));
+        sortOrder.addEventListener("change", () => render(sales));
         render(sales);
       } catch (error) {
         summary.textContent = "The sales data could not be loaded.";
-        results.innerHTML = `<tr><td class="message" colspan="3">${error.message}</td></tr>`;
+        results.innerHTML = `<tr><td class="message" colspan="4">${error.message}</td></tr>`;
       }
     }
 
